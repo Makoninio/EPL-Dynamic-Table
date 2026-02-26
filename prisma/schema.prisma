@@ -1,0 +1,72 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Season {
+  id         Int                 @id @default(autoincrement())
+  name       String
+  startDate  DateTime            @map("start_date")
+  endDate    DateTime            @map("end_date")
+  matches    Match[]
+  snapshots  StandingsSnapshot[]
+
+  @@map("seasons")
+}
+
+model Team {
+  id             Int                 @id @default(autoincrement())
+  name           String
+  shortName      String              @map("short_name")
+  crestUrl       String              @map("crest_url")
+  homeMatches    Match[]             @relation("HomeTeam")
+  awayMatches    Match[]             @relation("AwayTeam")
+  snapshots      StandingsSnapshot[]
+
+  @@map("teams")
+}
+
+model Match {
+  id          Int       @id @default(autoincrement())
+  seasonId    Int       @map("season_id")
+  matchweek   Int
+  kickoffUtc  DateTime  @map("kickoff_utc")
+  homeTeamId  Int       @map("home_team_id")
+  awayTeamId  Int       @map("away_team_id")
+  homeGoals   Int       @map("home_goals")
+  awayGoals   Int       @map("away_goals")
+  season      Season    @relation(fields: [seasonId], references: [id])
+  homeTeam    Team      @relation("HomeTeam", fields: [homeTeamId], references: [id])
+  awayTeam    Team      @relation("AwayTeam", fields: [awayTeamId], references: [id])
+
+  @@map("matches")
+  @@index([seasonId, matchweek])
+}
+
+model StandingsSnapshot {
+  id        Int    @id @default(autoincrement())
+  seasonId  Int    @map("season_id")
+  matchweek Int
+  teamId    Int    @map("team_id")
+  points    Int
+  played    Int
+  wins      Int
+  draws     Int
+  losses    Int
+  gf        Int
+  ga        Int
+  gd        Int
+  position  Int
+  form5     String
+  season    Season @relation(fields: [seasonId], references: [id])
+  team      Team   @relation(fields: [teamId], references: [id])
+
+  @@map("standings_snapshots")
+  @@unique([seasonId, matchweek, teamId])
+  @@index([seasonId, matchweek])
+  @@index([seasonId, teamId])
+}

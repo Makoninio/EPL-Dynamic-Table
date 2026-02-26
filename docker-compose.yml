@@ -1,0 +1,48 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: pl_lab_postgres
+    environment:
+      POSTGRES_DB: pllab
+      POSTGRES_USER: pllab
+      POSTGRES_PASSWORD: pllab
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U pllab -d pllab']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    container_name: pl_lab_api
+    environment:
+      DATABASE_URL: postgresql://pllab:pllab@postgres:5432/pllab?schema=public
+      PORT: 4000
+      NODE_ENV: development
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - '4000:4000'
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: pl_lab_web
+    environment:
+      NEXT_PUBLIC_API_BASE: http://localhost:4000
+      NODE_ENV: development
+    depends_on:
+      - api
+    ports:
+      - '3000:3000'
+
+volumes:
+  postgres_data:

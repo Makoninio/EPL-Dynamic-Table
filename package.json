@@ -1,0 +1,24 @@
+{
+  "name": "pl-2526-3d-season-lab",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run -ws build",
+    "dev": "npm run -ws --if-present dev",
+    "lint": "npm run -ws --if-present lint",
+    "test": "npm run -ws --if-present test",
+    "format": "prettier --write .",
+    "seed": "npm --workspace apps/api run prisma:seed"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.25.0",
+    "@typescript-eslint/parser": "^8.25.0",
+    "eslint": "^8.57.1",
+    "eslint-config-prettier": "^10.1.1",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.2"
+  }
+}
