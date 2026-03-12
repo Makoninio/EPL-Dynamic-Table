@@ -37,3 +37,7 @@ On startup, API runs migration + Pulselive-backed seed for EPL 2024/25.
 See:
 - `apps/api/.env.example`
 - `apps/web/.env.example`
+
+## Local Crest Assets
+
+Team crest files are stored in `apps/web/public/crests` and assigned automatically during seed via team short code/name mapping in `apps/api/src/scripts/seed.ts`.

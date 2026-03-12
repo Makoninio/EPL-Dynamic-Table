@@ -1,134 +1,36 @@
 'use client';
 
-import { Canvas } from '@react-three/fiber';
-import { Line, OrbitControls, useTexture } from '@react-three/drei';
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { fetchSeasons, fetchSnapshots, fetchTeams } from '../lib/api';
 import type { Snapshot, Team } from '../lib/types';
-
-const DEFAULT_SEASON_WEEKS = 38;
-const LANE_COUNT = 20;
-const TRACK_A_INNER = 7.2;
-const TRACK_B_INNER = 3.8;
-const LANE_GAP = 0.52;
-
-type TeamState = {
-  team: Team;
-  x: number;
-  y: number;
-  z: number;
-  heading: number;
-  snapshot: Snapshot;
-  trajectory: [number, number, number][];
-};
+import { ChampionshipTowerScene } from './championship-tower/scene-setup';
+import { TOWER_CONFIG, rankToHeight, zoneColor } from './championship-tower/config';
+import { useAnimationController } from './championship-tower/use-animation-controller';
+import { useInteractionController } from './championship-tower/use-interaction-controller';
+import { useEffect } from 'react';
 
 function lerp(a: number, b: number, t: number) {
   return a + (b - a) * t;
 }
 
+function easeOutBack(t: number, s = 1.15) {
+  const x = t - 1;
+  return 1 + x * x * ((s + 1) * x + s);
+}
+
 function weekSnapshot(teamId: number, week: number, byTeam: Map<number, Map<number, Snapshot>>) {
-  const tMap = byTeam.get(teamId);
-  if (!tMap) return null;
-  if (tMap.has(week)) return tMap.get(week)!;
+  const teamMap = byTeam.get(teamId);
+  if (!teamMap) return null;
+  if (teamMap.has(week)) return teamMap.get(week)!;
   for (let w = week; w >= 1; w -= 1) {
-    if (tMap.has(w)) return tMap.get(w)!;
+    if (teamMap.has(w)) return teamMap.get(w)!;
   }
-  const first = [...tMap.values()][0];
-  return first ?? null;
+  return [...teamMap.values()][0] ?? null;
 }
 
-function clampLane(position: number) {
-  return Math.min(LANE_COUNT - 1, Math.max(0, position - 1));
-}
-
-function trackPoint(progress: number, laneFloat: number) {
-  const p = ((progress % 1) + 1) % 1;
-  const theta = p * Math.PI * 2 + Math.PI / 2;
-  const lane = Math.min(LANE_COUNT - 1, Math.max(0, laneFloat));
-  const a = TRACK_A_INNER + lane * LANE_GAP;
-  const b = TRACK_B_INNER + lane * LANE_GAP;
-
-  const x = a * Math.cos(theta);
-  const z = b * Math.sin(theta);
-
-  const tx = -a * Math.sin(theta);
-  const tz = b * Math.cos(theta);
-  const heading = Math.atan2(tx, tz);
-
-  return { x, z, heading };
-}
-
-function colorFromIndex(index: number) {
-  return `hsl(${(index * 37) % 360} 80% 58%)`;
-}
-
-function TrackLanes() {
-  const laneLoops = useMemo(() => {
-    const loops: [number, number, number][][] = [];
-    for (let lane = 0; lane < LANE_COUNT; lane += 1) {
-      const points: [number, number, number][] = [];
-      for (let i = 0; i <= 120; i += 1) {
-        const p = i / 120;
-        const point = trackPoint(p, lane);
-        points.push([point.x, 0.01, point.z]);
-      }
-      loops.push(points);
-    }
-    return loops;
-  }, []);
-
-  return (
-    <group>
-      <mesh rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[44, 32]} />
-        <meshStandardMaterial color="#0b1220" />
-      </mesh>
-      {laneLoops.map((points, idx) => (
-        <Line
-          key={idx}
-          points={points}
-          color={idx === 0 ? '#f8fafc' : '#334155'}
-          lineWidth={idx === 0 ? 1.8 : 1}
-          transparent
-          opacity={idx < 2 ? 0.9 : 0.5}
-        />
-      ))}
-    </group>
-  );
-}
-
-function TeamCar({
-  state,
-  color,
-  highlighted,
-  onHover,
-  onUnhover,
-}: {
-  state: TeamState;
-  color: string;
-  highlighted: boolean;
-  onHover: () => void;
-  onUnhover: () => void;
-}) {
-  const crest = useTexture(state.team.crestUrl);
-
-  return (
-    <group position={[state.x, state.y, state.z]} rotation={[0, state.heading, 0]}>
-      <mesh onPointerOver={onHover} onPointerOut={onUnhover}>
-        <boxGeometry args={[0.95, 0.23, 0.5]} />
-        <meshStandardMaterial
-          color={color}
-          emissive={highlighted ? '#ffffff' : '#000000'}
-          emissiveIntensity={highlighted ? 0.25 : 0}
-        />
-      </mesh>
-
-      <mesh position={[0, 0.14, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[0.36, 0.36]} />
-        <meshBasicMaterial map={crest} transparent toneMapped={false} />
-      </mesh>
-    </group>
-  );
+function orbitSlot(index: number, count: number) {
+  if (count <= 1) return 0;
+  return (index / count) * Math.PI * 2;
 }
 
 export default function LivingTableLab() {
@@ -137,23 +39,21 @@ export default function LivingTableLab() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [seasonLabel, setSeasonLabel] = useState('PL 2024/25');
-
-  const [playing, setPlaying] = useState(true);
-  const [durationSec, setDurationSec] = useState(20);
-  const [weekFloat, setWeekFloat] = useState(1);
-  const [hoverTeamId, setHoverTeamId] = useState<number | null>(null);
   const [search, setSearch] = useState('');
   const [showPoints, setShowPoints] = useState(true);
   const [showGd, setShowGd] = useState(true);
   const [showForm, setShowForm] = useState(true);
 
-  const rafRef = useRef<number | null>(null);
-  const lastRef = useRef<number | null>(null);
-
   const totalWeeks = useMemo(() => {
     const maxWeek = snapshots.reduce((max, s) => Math.max(max, s.matchweek), 0);
-    return Math.max(DEFAULT_SEASON_WEEKS, maxWeek);
+    return Math.max(38, maxWeek);
   }, [snapshots]);
+
+  const animation = useAnimationController({ totalWeeks });
+  const interaction = useInteractionController({
+    setPlaying: animation.setPlaying,
+    stepWeek: animation.stepWeek,
+  });
 
   useEffect(() => {
     async function load() {
@@ -164,10 +64,12 @@ export default function LivingTableLab() {
           setLoading(false);
           return;
         }
+
         const season =
           seasons.find((s) => s.name.includes('2024/25')) ??
           seasons.find((s) => s.name === 'PL 2024/25') ??
           seasons[0];
+
         setSeasonLabel(season.name);
 
         const [teamRes, snapshotRes] = await Promise.all([
@@ -187,30 +89,6 @@ export default function LivingTableLab() {
     load();
   }, []);
 
-  useEffect(() => {
-    if (!playing) return;
-
-    function frame(ts: number) {
-      if (!lastRef.current) lastRef.current = ts;
-      const dt = (ts - lastRef.current) / 1000;
-      lastRef.current = ts;
-
-      setWeekFloat((prev) => {
-        const advance = (totalWeeks - 1) * (dt / durationSec);
-        const next = prev + advance;
-        return next > totalWeeks ? 1 : next;
-      });
-
-      rafRef.current = requestAnimationFrame(frame);
-    }
-
-    rafRef.current = requestAnimationFrame(frame);
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      lastRef.current = null;
-    };
-  }, [playing, durationSec, totalWeeks]);
-
   const byTeam = useMemo(() => {
     const map = new Map<number, Map<number, Snapshot>>();
     for (const s of snapshots) {
@@ -220,13 +98,19 @@ export default function LivingTableLab() {
     return map;
   }, [snapshots]);
 
-  const teamStates = useMemo<TeamState[]>(() => {
+  const slotByTeamId = useMemo(() => {
+    const sorted = [...teams].sort((a, b) => a.shortName.localeCompare(b.shortName));
+    const map = new Map<number, number>();
+    sorted.forEach((team, idx) => map.set(team.id, idx));
+    return map;
+  }, [teams]);
+
+  const badgeStates = useMemo(() => {
     if (!teams.length) return [];
 
-    const weekA = Math.floor(weekFloat);
+    const weekA = Math.floor(animation.weekFloat);
     const weekB = Math.min(totalWeeks, weekA + 1);
-    const weekT = weekFloat - weekA;
-    const progress = totalWeeks <= 1 ? 0 : (weekFloat - 1) / (totalWeeks - 1);
+    const localT = animation.weekFloat - weekA;
 
     return teams.map((team) => {
       const sa = weekSnapshot(team.id, weekA, byTeam);
@@ -253,175 +137,240 @@ export default function LivingTableLab() {
       const currentA = sa ?? emptySnapshot;
       const currentB = sb ?? currentA;
 
-      const laneA = clampLane(currentA.position);
-      const laneB = clampLane(currentB.position);
-      const laneFloat = lerp(laneA, laneB, weekT);
+      const yA = rankToHeight(currentA.position);
+      const yB = rankToHeight(currentB.position);
+      const pointsDelta = currentB.points - currentA.points;
+      const rankImprovement = currentA.position - currentB.position;
 
-      const currentPoint = trackPoint(progress, laneFloat);
+      const speedBoost = Math.min(1, Math.abs(pointsDelta) * TOWER_CONFIG.animation.momentumFactor);
+      const fastT = Math.min(1, localT * (1 + speedBoost));
+      const eased = easeOutBack(fastT, 1.15);
+
+      const y = lerp(yA, yB, eased);
+      const settle = Math.sin(eased * Math.PI) * (1 - eased) * TOWER_CONFIG.animation.overshoot;
+
+      const slot = slotByTeamId.get(team.id) ?? 0;
+      const angle = orbitSlot(slot, teams.length);
+      const x = Math.cos(angle) * TOWER_CONFIG.radiusFromTower;
+      const z = Math.sin(angle) * TOWER_CONFIG.radiusFromTower;
+      const heading = Math.atan2(-x, -z);
+
+      const burst = rankImprovement > 0 ? Math.sin(Math.PI * fastT) : 0;
+
+      const trail: [number, number, number][] = [
+        [x, yA, z],
+        [x, y + settle, z],
+      ];
 
       const trajectory: [number, number, number][] = [];
       for (let week = 1; week <= totalWeeks; week += 1) {
         const sw = weekSnapshot(team.id, week, byTeam) ?? currentA;
-        const lane = clampLane(sw.position);
-        const p = totalWeeks <= 1 ? 0 : (week - 1) / (totalWeeks - 1);
-        const pos = trackPoint(p, lane);
-        trajectory.push([pos.x, 0.03, pos.z]);
+        trajectory.push([x, rankToHeight(sw.position), z]);
       }
 
       return {
-        team,
-        x: currentPoint.x,
-        y: 0.16,
-        z: currentPoint.z,
-        heading: currentPoint.heading,
-        snapshot: currentA,
+        teamId: team.id,
+        teamName: team.name,
+        shortName: team.shortName,
+        crestUrl: team.crestUrl,
+        rank: currentA.position,
+        points: currentA.points,
+        pointsDelta,
+        form5: currentA.form5,
+        x,
+        y: y + settle + (currentA.position - 1) * 0.002,
+        z,
+        heading,
+        burst,
+        trail,
         trajectory,
       };
     });
-  }, [teams, byTeam, weekFloat, totalWeeks]);
+  }, [teams, byTeam, slotByTeamId, animation.weekFloat, totalWeeks]);
 
   const filteredTeams = useMemo(() => {
     const q = search.toLowerCase().trim();
-    if (!q) return teamStates;
-    return teamStates.filter(
-      (t) => t.team.name.toLowerCase().includes(q) || t.team.shortName.toLowerCase().includes(q),
+    if (!q) return badgeStates;
+    return badgeStates.filter(
+      (t) => t.teamName.toLowerCase().includes(q) || t.shortName.toLowerCase().includes(q),
     );
-  }, [teamStates, search]);
+  }, [badgeStates, search]);
 
-  const hoverTeam = teamStates.find((s) => s.team.id === hoverTeamId) ?? null;
-  const colorByTeamId = useMemo(
-    () => new Map(teamStates.map((t, idx) => [t.team.id, colorFromIndex(idx)])),
-    [teamStates],
-  );
+  const activeTeam =
+    badgeStates.find((s) => s.teamId === interaction.selectedTeamId) ??
+    badgeStates.find((s) => s.teamId === interaction.hoverTeamId) ??
+    null;
 
-  if (loading) return <div className="panel">Loading race-track standings...</div>;
+  if (loading) return <div className="panel">Loading championship tower...</div>;
   if (error) return <div className="panel text-red-400">{error}</div>;
-  if (!teamStates.length) return <div className="panel">No standings snapshots found.</div>;
+  if (!badgeStates.length) return <div className="panel">No standings snapshots found.</div>;
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_290px]">
-      <section className="panel relative h-[72vh] min-h-[560px]">
-        <Canvas camera={{ position: [0, 22, 22], fov: 44 }}>
-          <ambientLight intensity={0.7} />
-          <directionalLight position={[10, 16, 9]} intensity={1.15} />
+    <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+      <section
+        className="race-canvas-shell panel relative h-[78vh] min-h-[620px] overflow-hidden"
+        onWheel={(e) => {
+          e.preventDefault();
+          interaction.nudgeTowerYOffset(e.deltaY > 0 ? -0.35 : 0.35);
+        }}
+      >
+        <ChampionshipTowerScene
+          teams={badgeStates}
+          followLeader={interaction.followLeader}
+          selectedTeamId={interaction.selectedTeamId}
+          hoverTeamId={interaction.hoverTeamId}
+          resetToken={interaction.resetToken}
+          orbitEnabled={!interaction.isUserInteracting}
+          verticalOffset={interaction.towerYOffset}
+          onCanvasPointerDown={() => interaction.setIsUserInteracting(true)}
+          onCanvasPointerUp={() => interaction.setIsUserInteracting(false)}
+          onHover={(teamId) => interaction.setHoverTeamId(teamId)}
+          onUnhover={(teamId) => interaction.setHoverTeamId((prev) => (prev === teamId ? null : prev))}
+          onSelect={(teamId) => interaction.setSelectedTeamId(teamId)}
+        />
 
-          <TrackLanes />
+        {interaction.showBroadcastHud ? (
+          <div className="pointer-events-none absolute left-4 top-4 w-[380px] rounded-xl border border-[var(--pl-border)] bg-[rgba(43,0,64,0.55)] p-4 text-xs backdrop-blur">
+            <div className="pl-header-strip mb-2 h-2 w-full rounded-full" />
+            <div className="text-[11px] uppercase tracking-[0.16em] text-[var(--pl-cyan-500)]">Premier League Broadcast Lab</div>
+            <div className="mt-1 flex items-center gap-2">
+              <div className="text-lg font-semibold text-[var(--pl-text)]">Championship Tower ({seasonLabel})</div>
+              <span className="rounded-full border border-white/25 px-2 py-0.5 text-[10px] uppercase tracking-wide text-white">Living Table</span>
+            </div>
+            <div className="mt-2 flex items-center justify-between text-[var(--pl-muted)]">
+              <span>Matchweek {Math.max(1, Math.floor(animation.weekFloat))}</span>
+              <span>{Math.round(animation.progress * 100)}%</span>
+            </div>
+            <div className="mt-1 h-1.5 overflow-hidden rounded bg-white/20">
+              <div
+                className="h-full bg-gradient-to-r from-[var(--pl-cyan-500)] to-[var(--pl-blue-500)] transition-all"
+                style={{ width: `${Math.max(0, Math.min(100, animation.progress * 100))}%` }}
+              />
+            </div>
+          </div>
+        ) : (
+          <button
+            className="absolute left-4 top-4 rounded-md border border-white/30 bg-[rgba(43,0,64,0.62)] px-3 py-1 text-xs text-white"
+            onClick={() => interaction.setShowBroadcastHud(true)}
+          >
+            Show Broadcast Lab
+          </button>
+        )}
 
-          <Suspense fallback={null}>
-            {teamStates.map((state) => {
-              const highlighted = hoverTeamId === state.team.id;
-              const color = colorByTeamId.get(state.team.id) ?? '#94a3b8';
-
-              return (
-                <group key={state.team.id}>
-                  <TeamCar
-                    state={state}
-                    color={color}
-                    highlighted={highlighted}
-                    onHover={() => setHoverTeamId(state.team.id)}
-                    onUnhover={() => setHoverTeamId((prev) => (prev === state.team.id ? null : prev))}
-                  />
-
-                  <Line
-                    points={state.trajectory}
-                    color={highlighted ? '#f8fafc' : '#64748b'}
-                    lineWidth={highlighted ? 2.8 : 1}
-                    transparent
-                    opacity={highlighted ? 1 : 0.25}
-                  />
-                </group>
-              );
-            })}
-          </Suspense>
-
-          <OrbitControls enablePan={false} maxDistance={48} minDistance={16} />
-        </Canvas>
-
-        <div className="pointer-events-none absolute left-4 top-4 rounded-lg border border-white/20 bg-black/50 px-3 py-2 text-xs">
-          <div>EPL race-track table ({seasonLabel})</div>
-          <div>20 lanes: lane 1 is rank #1, lane 20 is rank #20</div>
-          <div>Current week: {weekFloat.toFixed(2)}</div>
-        </div>
-
-        {hoverTeam && (
-          <div className="absolute right-4 top-4 w-56 rounded-lg border border-white/20 bg-slate-900/90 p-3 text-sm">
-            <div className="font-semibold">{hoverTeam.team.name}</div>
-            <div className="text-xs text-slate-300">MW {Math.floor(weekFloat)}</div>
-            <div>Lane: {hoverTeam.snapshot.position}</div>
-            {showPoints && <div>Points: {hoverTeam.snapshot.points}</div>}
-            {showGd && <div>GD: {hoverTeam.snapshot.gd}</div>}
-            {showForm && <div>Form: {hoverTeam.snapshot.form5}</div>}
+        {activeTeam && (
+          <div className="absolute right-4 top-4 w-64 rounded-xl border border-[var(--pl-border)] bg-[rgba(43,0,64,0.62)] p-3 text-sm backdrop-blur">
+            <div className="font-semibold text-[var(--pl-text)]">{activeTeam.teamName}</div>
+            <div className="text-xs text-[var(--pl-muted)]">Rank #{activeTeam.rank}</div>
+            {showPoints && <div className="mt-1">Points: {activeTeam.points}</div>}
+            {showGd && <div>Points Delta: {activeTeam.pointsDelta >= 0 ? '+' : ''}{activeTeam.pointsDelta}</div>}
+            {showForm && <div>Form: {activeTeam.form5}</div>}
           </div>
         )}
       </section>
 
       <aside className="space-y-3">
-        <div className="panel space-y-2">
-          <div className="control-row">
-            <button className="rounded bg-emerald-600 px-3 py-1" onClick={() => setPlaying(true)}>
-              Play
-            </button>
-            <button className="rounded bg-slate-700 px-3 py-1" onClick={() => setPlaying(false)}>
-              Pause
+        <div className="panel space-y-3 border-[var(--pl-border)] bg-[rgba(43,0,64,0.55)]">
+          <div className="flex items-center gap-2">
+            <button
+              className="rounded-md bg-gradient-to-r from-[var(--pl-cyan-500)] to-[var(--pl-blue-500)] px-3 py-1 text-white shadow-[0_0_14px_rgba(0,212,255,0.45)]"
+              onClick={() => animation.setPlaying((v) => !v)}
+            >
+              {animation.playing ? 'Pause' : 'Play'}
             </button>
             <button
-              className="rounded bg-slate-700 px-3 py-1"
+              className="rounded-md border border-white/35 bg-transparent px-3 py-1 text-white"
               onClick={() => {
-                setWeekFloat(1);
-                setPlaying(false);
+                animation.resetTimeline();
+                interaction.setSelectedTeamId(null);
+                interaction.setFollowLeader(false);
+                interaction.setTowerYOffset(0);
+                interaction.setResetToken((n) => n + 1);
               }}
             >
-              Restart
+              Reset Camera
             </button>
           </div>
 
-          <label className="block text-xs text-slate-300">
-            Speed ({durationSec}s)
+          <label className="block text-xs uppercase tracking-wide text-[var(--pl-muted)]">
+            Season Speed ({animation.durationSec}s)
             <input
-              className="w-full"
+              className="pl-slider mt-1 h-1.5 w-full appearance-none rounded"
               type="range"
               min={5}
               max={60}
-              value={durationSec}
-              onChange={(e) => setDurationSec(Number(e.target.value))}
+              value={animation.durationSec}
+              onChange={(e) => animation.setDurationSec(Number(e.target.value))}
             />
           </label>
 
-          <label className="block text-xs text-slate-300">
-            Scrub to matchweek ({weekFloat.toFixed(1)})
+          <label className="block text-xs uppercase tracking-wide text-[var(--pl-muted)]">
+            Scrub Matchweek ({animation.weekFloat.toFixed(1)})
             <input
-              className="w-full"
+              className="pl-slider mt-1 h-1.5 w-full appearance-none rounded"
               type="range"
               min={1}
               max={totalWeeks}
               step={0.1}
-              value={weekFloat}
+              value={animation.weekFloat}
               onChange={(e) => {
-                setPlaying(false);
-                setWeekFloat(Number(e.target.value));
+                animation.setPlaying(false);
+                animation.setWeekFloat(Number(e.target.value));
               }}
             />
           </label>
 
-          <div className="grid grid-cols-1 gap-1 text-xs text-slate-300">
+          <label className="flex items-center gap-2 text-sm text-[var(--pl-muted)]">
+            <input type="checkbox" checked={interaction.followLeader} onChange={(e) => interaction.setFollowLeader(e.target.checked)} />
+            Follow rank #1 focus
+          </label>
+
+          <div className="flex items-center gap-2">
+            <button
+              className="rounded-md border border-white/35 bg-transparent px-3 py-1 text-white"
+              onClick={() => interaction.nudgeTowerYOffset(0.8)}
+            >
+              Move Up
+            </button>
+            <button
+              className="rounded-md border border-white/35 bg-transparent px-3 py-1 text-white"
+              onClick={() => interaction.nudgeTowerYOffset(-0.8)}
+            >
+              Move Down
+            </button>
+            <button
+              className="rounded-md border border-white/35 bg-transparent px-3 py-1 text-white"
+              onClick={() => interaction.setShowBroadcastHud((v) => !v)}
+            >
+              {interaction.showBroadcastHud ? 'Hide Lab Card' : 'Show Lab Card'}
+            </button>
+          </div>
+
+          <div className="text-xs text-[var(--pl-muted)]">
+            Keys: `Space` play/pause, `←/→` week step, `↑/↓` move tower view, `F` follow leader, `R` reset camera
+          </div>
+
+          <div className="grid gap-1 text-xs text-[var(--pl-muted)]">
             <label>
-              <input type="checkbox" checked={showPoints} onChange={(e) => setShowPoints(e.target.checked)} />
-              {' '}Show points
+              <input type="checkbox" checked={showPoints} onChange={(e) => setShowPoints(e.target.checked)} /> Show points
             </label>
             <label>
-              <input type="checkbox" checked={showGd} onChange={(e) => setShowGd(e.target.checked)} />
-              {' '}Show goal difference
+              <input type="checkbox" checked={showGd} onChange={(e) => setShowGd(e.target.checked)} /> Show points delta
             </label>
             <label>
-              <input type="checkbox" checked={showForm} onChange={(e) => setShowForm(e.target.checked)} />
-              {' '}Show form (last 5)
+              <input type="checkbox" checked={showForm} onChange={(e) => setShowForm(e.target.checked)} /> Show form
             </label>
           </div>
         </div>
 
-        <div className="panel space-y-2">
+        <div className="panel space-y-2 border-[var(--pl-border)] bg-[rgba(43,0,64,0.55)]">
+          <div className="text-xs uppercase tracking-wide text-[var(--pl-cyan-500)]">Legend</div>
+          <div className="text-sm text-[var(--pl-muted)]">Top 4: Gold highlight</div>
+          <div className="text-sm text-[var(--pl-muted)]">Relegation (18-20): Pink-red highlight</div>
+        </div>
+
+        <div className="panel space-y-2 border-[var(--pl-border)] bg-[rgba(43,0,64,0.55)]">
           <input
-            className="w-full rounded border border-white/10 bg-slate-800 px-2 py-1 text-sm"
+            className="w-full rounded border border-white/25 bg-white/10 px-2 py-1 text-sm text-white"
             placeholder="Search team"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -429,17 +378,15 @@ export default function LivingTableLab() {
           <div className="max-h-72 space-y-1 overflow-auto text-sm">
             {filteredTeams.map((state) => (
               <button
-                key={state.team.id}
-                className="flex w-full items-center gap-2 rounded px-2 py-1 text-left hover:bg-white/10"
-                onMouseEnter={() => setHoverTeamId(state.team.id)}
-                onMouseLeave={() => setHoverTeamId((prev) => (prev === state.team.id ? null : prev))}
+                key={state.teamId}
+                className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-white hover:bg-white/10"
+                onMouseEnter={() => interaction.setHoverTeamId(state.teamId)}
+                onMouseLeave={() => interaction.setHoverTeamId((prev) => (prev === state.teamId ? null : prev))}
+                onClick={() => interaction.setSelectedTeamId(state.teamId)}
               >
-                <span
-                  className="h-3 w-3 rounded-full"
-                  style={{ backgroundColor: colorByTeamId.get(state.team.id) ?? '#94a3b8' }}
-                />
-                <span>{state.team.shortName}</span>
-                <span className="ml-auto text-xs text-slate-400">P{state.snapshot.position}</span>
+                <span className="h-2.5 w-2.5 rounded-full" style={{ background: zoneColor(state.rank) }} />
+                <span>{state.shortName}</span>
+                <span className="ml-auto text-xs text-[var(--pl-muted)]">#{state.rank}</span>
               </button>
             ))}
           </div>

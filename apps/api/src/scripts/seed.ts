@@ -64,8 +64,71 @@ type TeamStats = {
   results: Array<'W' | 'D' | 'L'>;
 };
 
-function crestFromShort(shortName: string) {
-  return `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(shortName)}`;
+const CREST_BY_SHORT: Record<string, string> = {
+  ARS: '/crests/ars.svg',
+  AVL: '/crests/avl.svg',
+  BOU: '/crests/bou.svg',
+  BRE: '/crests/bre.svg',
+  BHA: '/crests/bha.svg',
+  CHE: '/crests/che.svg',
+  CRY: '/crests/cry.svg',
+  EVE: '/crests/eve.svg',
+  FUL: '/crests/ful.svg',
+  IPS: '/crests/ips.svg',
+  LEI: '/crests/lei.svg',
+  LIV: '/crests/liv.jpg',
+  MCI: '/crests/mci.svg',
+  MUN: '/crests/mun.svg',
+  NEW: '/crests/new.svg',
+  NFO: '/crests/nfo.svg',
+  SOU: '/crests/sou.svg',
+  TOT: '/crests/tot.svg',
+  WHU: '/crests/whu.svg',
+  WOL: '/crests/wol.svg',
+};
+
+const CREST_BY_NAME: Record<string, string> = {
+  arsenal: '/crests/ars.svg',
+  'aston villa': '/crests/avl.svg',
+  bournemouth: '/crests/bou.svg',
+  brentford: '/crests/bre.svg',
+  brighton: '/crests/bha.svg',
+  chelsea: '/crests/che.svg',
+  'crystal palace': '/crests/cry.svg',
+  everton: '/crests/eve.svg',
+  fulham: '/crests/ful.svg',
+  ipswich: '/crests/ips.svg',
+  leicester: '/crests/lei.svg',
+  liverpool: '/crests/liv.jpg',
+  'man city': '/crests/mci.svg',
+  'manchester city': '/crests/mci.svg',
+  'man utd': '/crests/mun.svg',
+  'manchester united': '/crests/mun.svg',
+  newcastle: '/crests/new.svg',
+  'nottingham forest': '/crests/nfo.svg',
+  southampton: '/crests/sou.svg',
+  tottenham: '/crests/tot.svg',
+  'tottenham hotspur': '/crests/tot.svg',
+  'west ham': '/crests/whu.svg',
+  'west ham united': '/crests/whu.svg',
+  wolves: '/crests/wol.svg',
+  'wolverhampton wanderers': '/crests/wol.svg',
+};
+
+function normalizeName(name: string) {
+  return name.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function crestFromTeam(name: string, shortName: string) {
+  const byShort = CREST_BY_SHORT[shortName.toUpperCase()];
+  if (byShort) return byShort;
+
+  const normalized = normalizeName(name);
+  for (const [key, crest] of Object.entries(CREST_BY_NAME)) {
+    if (normalized.includes(key)) return crest;
+  }
+
+  return '/crests/generic.svg';
 }
 
 async function fetchPulseJson<T>(path: string, params: Record<string, string | number>) {
@@ -224,12 +287,12 @@ async function main() {
     byPulseTeam.set(fixture.home.pulseTeamId, {
       name: fixture.home.name,
       shortName: fixture.home.shortName,
-      crestUrl: crestFromShort(fixture.home.shortName),
+      crestUrl: crestFromTeam(fixture.home.name, fixture.home.shortName),
     });
     byPulseTeam.set(fixture.away.pulseTeamId, {
       name: fixture.away.name,
       shortName: fixture.away.shortName,
-      crestUrl: crestFromShort(fixture.away.shortName),
+      crestUrl: crestFromTeam(fixture.away.name, fixture.away.shortName),
     });
   }
 

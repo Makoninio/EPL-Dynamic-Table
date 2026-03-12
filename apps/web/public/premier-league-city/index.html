@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Premier League City</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="scene"></canvas>
+
+      <aside class="hud">
+        <h1>Premier League City</h1>
+        <p class="subtitle">Low-poly seasonal skyline prototype</p>
+
+        <div class="hud-row">
+          <span>Matchweek</span>
+          <strong id="mw-value">1</strong>
+        </div>
+
+        <div class="controls">
+          <button id="play-btn" type="button">Play Season</button>
+          <input id="mw-slider" type="range" min="1" max="38" value="1" step="1" />
+        </div>
+
+        <section class="club-card" id="club-card">
+          <h2 id="club-name">Select a Club</h2>
+          <div class="meta">
+            <span id="club-short">---</span>
+            <span id="club-pos">Pos --</span>
+          </div>
+          <ul>
+            <li><span>Points</span><strong id="club-points">--</strong></li>
+            <li><span>Goal Difference</span><strong id="club-gd">--</strong></li>
+            <li><span>Goals Scored</span><strong id="club-gs">--</strong></li>
+            <li><span>Form</span><strong id="club-form">-----</strong></li>
+          </ul>
+        </section>
+
+        <section class="legend">
+          <h3>Legend</h3>
+          <p><strong>Height</strong>: points</p>
+          <p><strong>Footprint</strong>: goal difference</p>
+          <p><strong>Beacon glow</strong>: goals scored</p>
+          <p><strong>Pulse speed</strong>: recent form</p>
+        </section>
+      </aside>
+    </div>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
