@@ -2,9 +2,10 @@
 
 import { useMemo, useState } from 'react';
 import { fetchSeasons, fetchSnapshots, fetchTeams } from '../lib/api';
+import { demoSeason, demoSnapshots, demoTeams } from '../lib/demo-data';
 import type { Snapshot, Team } from '../lib/types';
 import { ChampionshipTowerScene } from './championship-tower/scene-setup';
-import { TOWER_CONFIG, rankToHeight, zoneColor } from './championship-tower/config';
+import { TOWER_CONFIG, rankToHeight } from './championship-tower/config';
 import { useAnimationController } from './championship-tower/use-animation-controller';
 import { useInteractionController } from './championship-tower/use-interaction-controller';
 import { useEffect } from 'react';
@@ -33,12 +34,20 @@ function orbitSlot(index: number, count: number) {
   return (index / count) * Math.PI * 2;
 }
 
+function normalizeCrestPath(path: string) {
+  if (path.startsWith('/crests/')) {
+    return path.replace(/\.(jpg|jpeg|png)$/i, '.svg');
+  }
+  return path;
+}
+
 export default function LivingTableLab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [seasonLabel, setSeasonLabel] = useState('PL 2024/25');
+  const [isDemoMode, setIsDemoMode] = useState(false);
   const [search, setSearch] = useState('');
   const [showPoints, setShowPoints] = useState(true);
   const [showGd, setShowGd] = useState(true);
@@ -60,7 +69,10 @@ export default function LivingTableLab() {
       try {
         const seasons = await fetchSeasons();
         if (!seasons.length) {
-          setError('No seasons available.');
+          setSeasonLabel(demoSeason.name);
+          setTeams(demoTeams);
+          setSnapshots(demoSnapshots);
+          setIsDemoMode(true);
           setLoading(false);
           return;
         }
@@ -79,7 +91,12 @@ export default function LivingTableLab() {
 
         setTeams(teamRes.teams);
         setSnapshots(snapshotRes.snapshots);
+        setIsDemoMode(false);
       } catch (e) {
+        setSeasonLabel(demoSeason.name);
+        setTeams(demoTeams);
+        setSnapshots(demoSnapshots);
+        setIsDemoMode(true);
         setError((e as Error).message);
       } finally {
         setLoading(false);
@@ -202,8 +219,7 @@ export default function LivingTableLab() {
     null;
 
   if (loading) return <div className="panel">Loading championship tower...</div>;
-  if (error) return <div className="panel text-red-400">{error}</div>;
-  if (!badgeStates.length) return <div className="panel">No standings snapshots found.</div>;
+  if (!badgeStates.length) return <div className="panel text-red-400">{error ?? 'No standings snapshots found.'}</div>;
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
@@ -269,7 +285,15 @@ export default function LivingTableLab() {
       </section>
 
       <aside className="space-y-3">
+        {isDemoMode && (
+          <div className="panel border-[var(--pl-border)] bg-[rgba(43,0,64,0.55)] text-sm text-[var(--pl-muted)]">
+            Demo data mode. API snapshots were unavailable, so the tower is using an offline season simulation.
+          </div>
+        )}
+
         <div className="panel space-y-3 border-[var(--pl-border)] bg-[rgba(43,0,64,0.55)]">
+          {error && <div className="text-xs text-[#ffd4e8]">Last API error: {error}</div>}
+
           <div className="flex items-center gap-2">
             <button
               className="rounded-md bg-gradient-to-r from-[var(--pl-cyan-500)] to-[var(--pl-blue-500)] px-3 py-1 text-white shadow-[0_0_14px_rgba(0,212,255,0.45)]"
@@ -364,8 +388,8 @@ export default function LivingTableLab() {
 
         <div className="panel space-y-2 border-[var(--pl-border)] bg-[rgba(43,0,64,0.55)]">
           <div className="text-xs uppercase tracking-wide text-[var(--pl-cyan-500)]">Legend</div>
-          <div className="text-sm text-[var(--pl-muted)]">Top 4: Gold highlight</div>
-          <div className="text-sm text-[var(--pl-muted)]">Relegation (18-20): Pink-red highlight</div>
+          <div className="text-sm text-[var(--pl-muted)]">Top 4: Green highlight</div>
+          <div className="text-sm text-[var(--pl-muted)]">Relegation (18-20): Red highlight</div>
         </div>
 
         <div className="panel space-y-2 border-[var(--pl-border)] bg-[rgba(43,0,64,0.55)]">
@@ -384,7 +408,13 @@ export default function LivingTableLab() {
                 onMouseLeave={() => interaction.setHoverTeamId((prev) => (prev === state.teamId ? null : prev))}
                 onClick={() => interaction.setSelectedTeamId(state.teamId)}
               >
-                <span className="h-2.5 w-2.5 rounded-full" style={{ background: zoneColor(state.rank) }} />
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white/8 ring-1 ring-white/10">
+                  <img
+                    src={normalizeCrestPath(state.crestUrl)}
+                    alt={`${state.teamName} crest`}
+                    className="h-6 w-6 object-contain"
+                  />
+                </span>
                 <span>{state.shortName}</span>
                 <span className="ml-auto text-xs text-[var(--pl-muted)]">#{state.rank}</span>
               </button>

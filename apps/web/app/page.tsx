@@ -1,3 +1,5 @@
+import LivingTableLab from '../components/living-table-lab';
+
 export default function HomePage() {
   return (
     <div className="home-city-shell">
@@ -17,18 +19,18 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className="city-transition" aria-hidden="true">
-        <div className="city-transition-line" />
-        <div className="city-transition-glow" />
-      </section>
+      <section id="city" className="city-page city-page-live">
+        <div className="city-live-shell">
+          <div className="city-live-header">
+            <p className="city-live-kicker">Interactive Visualization</p>
+            <h2>Championship Tower</h2>
+            <p>
+              Explore a live 3D table where each club orbits a central tower and its altitude tracks league position over the season.
+            </p>
+          </div>
 
-      <section id="city" className="city-page">
-        <iframe
-          src="/premier-league-city/index.html"
-          title="Premier League City"
-          className="city-frame"
-          loading="eager"
-        />
+          <LivingTableLab />
+        </div>
       </section>
     </div>
   );

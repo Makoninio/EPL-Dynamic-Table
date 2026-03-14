@@ -41,8 +41,8 @@ export function rankToHeight(rank: number) {
 }
 
 export function zoneColor(rank: number) {
-  if (rank <= 4) return '#ffd166';
-  if (rank >= 18) return '#ff2e9a';
+  if (rank <= 4) return '#39d353';
+  if (rank >= 18) return '#ff4d4f';
   return '#7c8bb8';
 }
 

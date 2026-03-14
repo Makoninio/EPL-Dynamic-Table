@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Generic club crest">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1d3557" />
+      <stop offset="100%" stop-color="#2d7dff" />
+    </linearGradient>
+    <linearGradient id="stripe" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#5ee7ff" stop-opacity="0.95" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.72" />
+    </linearGradient>
+  </defs>
+  <path d="M64 8 108 24v34c0 28.5-17.7 48.9-44 62C37.7 106.9 20 86.5 20 58V24L64 8Z" fill="url(#bg)" stroke="#d9f4ff" stroke-width="4"/>
+  <path d="M64 26 87 35v19c0 14.9-8.9 28.5-23 36.6C49.9 82.5 41 68.9 41 54V35l23-9Z" fill="none" stroke="url(#stripe)" stroke-width="5"/>
+  <circle cx="64" cy="52" r="11" fill="#5ee7ff"/>
+  <path d="M47 78h34" stroke="#ffffff" stroke-width="6" stroke-linecap="round"/>
+</svg>

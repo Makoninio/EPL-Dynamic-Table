@@ -1,6 +1,6 @@
 import { Line } from '@react-three/drei';
 import { useMemo } from 'react';
-import { TOWER_CONFIG, rankToHeight } from './config';
+import { TOWER_CONFIG, rankToHeight, zoneColor } from './config';
 
 function ringPoints(y: number, radius: number, segments = 96) {
   const points: [number, number, number][] = [];
@@ -12,9 +12,7 @@ function ringPoints(y: number, radius: number, segments = 96) {
 }
 
 function rankBandColor(rank: number) {
-  if (rank <= 4) return '#ffd166';
-  if (rank >= 18) return '#ff2e9a';
-  return '#7c8bb8';
+  return zoneColor(rank);
 }
 
 export function TowerAndRanks() {

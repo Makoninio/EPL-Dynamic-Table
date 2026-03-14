@@ -18,6 +18,13 @@ type BadgeState = {
   trail: [number, number, number][];
 };
 
+function normalizeCrestPath(path: string) {
+  if (path.startsWith('/crests/')) {
+    return path.replace(/\.(jpg|jpeg|png)$/i, '.svg');
+  }
+  return path;
+}
+
 export function TeamBadgeModule({
   state,
   selected,
@@ -35,10 +42,7 @@ export function TeamBadgeModule({
   onUnhover: () => void;
   onSelect: () => void;
 }) {
-  const crestPath =
-    state.crestUrl === '/crests/liv.svg' || state.crestUrl.endsWith('/crests/liv.svg')
-      ? '/crests/liv.svg'
-      : state.crestUrl;
+  const crestPath = normalizeCrestPath(state.crestUrl);
   const crest = useTexture(crestPath);
   const { gl } = useThree();
 
@@ -63,50 +67,47 @@ export function TeamBadgeModule({
     >
       <Line points={state.trail} color="#9dd8ff" lineWidth={1.4} transparent opacity={0.42 + state.burst * 0.35} />
 
-      <RoundedBox args={[1.08, 0.34, 0.54]} radius={0.08} smoothness={3} castShadow receiveShadow>
-        <meshStandardMaterial color="#7e90b4" metalness={0.56} roughness={0.24} emissive="#111833" emissiveIntensity={0.16} />
-      </RoundedBox>
+      <mesh position={[0, -0.16, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.22, 0.46, 32]} />
+        <meshBasicMaterial color={glow} transparent opacity={0.3 + state.burst * 0.18} toneMapped={false} />
+      </mesh>
 
-      <RoundedBox args={[1.24, 0.42, 0.68]} radius={0.1} smoothness={2}>
-        <meshBasicMaterial color={glow} transparent opacity={glowOpacity} toneMapped={false} />
-      </RoundedBox>
-
-      <Billboard position={[0, 0.42, 0]}>
-        <mesh position={[0, -0.008, -0.003]}>
-          <planeGeometry args={[0.64, 0.64]} />
-          <meshBasicMaterial color="#0f1122" transparent opacity={0.75} toneMapped={false} />
+      <Billboard position={[0, 0.34, 0]}>
+        <mesh position={[0, 0, -0.01]}>
+          <circleGeometry args={[0.38, 48]} />
+          <meshBasicMaterial color={glow} transparent opacity={0.18 + glowOpacity * 0.22} toneMapped={false} />
         </mesh>
         <mesh>
-          <planeGeometry args={[0.56, 0.56]} />
+          <planeGeometry args={[0.52, 0.52]} />
           <meshBasicMaterial map={crest} transparent toneMapped={false} />
         </mesh>
       </Billboard>
 
-      <mesh position={[0, -0.19, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.24, 0.58, 24]} />
+      <mesh position={[0, -0.2, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.12, 0.34, 24]} />
         <meshStandardMaterial
           color={glow}
           emissive={glow}
-          emissiveIntensity={selected ? 0.95 : hovered ? 0.8 : 0.65}
+          emissiveIntensity={selected ? 1 : hovered ? 0.82 : 0.58}
           transparent
-          opacity={selected ? 0.54 : 0.38}
+          opacity={selected ? 0.48 : 0.3}
         />
       </mesh>
 
       <pointLight
-        position={[0, 0.14, 0]}
+        position={[0, 0.2, 0]}
         color={glow}
-        intensity={selected ? 0.82 : hovered ? 0.56 : 0.32}
-        distance={3.2}
+        intensity={selected ? 0.74 : hovered ? 0.48 : 0.24}
+        distance={2.4}
         decay={2}
       />
 
       {showLabel && (
-        <Billboard position={[0, 0.95, 0]}>
-          <RoundedBox args={[1.28, 0.28, 0.04]} radius={0.07} smoothness={2}>
-            <meshStandardMaterial color="#2b0040" emissive="#2d7dff" emissiveIntensity={0.18} />
+        <Billboard position={[0, 0.82, 0]}>
+          <RoundedBox args={[1.04, 0.22, 0.03]} radius={0.06} smoothness={2}>
+            <meshStandardMaterial color="#2136b9" emissive="#2d7dff" emissiveIntensity={0.1} />
           </RoundedBox>
-          <Text fontSize={0.11} color="#ffffff" anchorX="center" anchorY="middle" position={[0, 0, 0.03]}>
+          <Text fontSize={0.095} color="#ffffff" anchorX="center" anchorY="middle" position={[0, 0, 0.025]}>
             {`${state.shortName}  #${state.rank}`}
           </Text>
         </Billboard>
